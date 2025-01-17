@@ -4,7 +4,7 @@ pkgrel=@REL@
 pkgdesc="The GNU Privacy Guard with Qubes OS-specific patch for DNS proxying"
 arch=('x86_64')
 url="https://dev.gnupg.org/"
-depends=('libgpg-error' 'libgcrypt' 'libksba' 'libassuan' 'npth', 'pinentry')
+depends=('libgpg-error' 'libgcrypt' 'libksba' 'libassuan' 'npth' 'pinentry')
 makedepends=('gcc' 'make' 'gettext' 'autoconf' 'automake' 'patch' 'libldap' 'libusb-compat' 'pcsclite' 'fig2dev')
 
 source=("gnupg-${pkgver}.tar.bz2", "0001-Modify-dirmngr-s-http.c-to-route-DNS-requests-throug.patch")
