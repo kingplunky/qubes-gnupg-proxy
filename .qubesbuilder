@@ -7,3 +7,5 @@ source:
   files:
   - url: https://gnupg.org/ftp/gcrypt/gnupg/gnupg-@VERSION@.tar.bz2
     signature: https://gnupg.org/ftp/gcrypt/gnupg/gnupg-@VERSION@.tar.bz2.sig
+    pubkeys:
+    - signature_key.asc 
