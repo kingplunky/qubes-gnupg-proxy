@@ -1,0 +1,32 @@
+pkgname=qubes-gnupg-proxy
+pkgver=@VERSION@
+pkgrel=@REL@
+pkgdesc="The GNU Privacy Guard with Qubes OS-specific patch for DNS proxying"
+arch=('x86_64')
+url="https://dev.gnupg.org/"
+depends=('libgpg-error' 'libgcrypt' 'libksba' 'libassuan' 'npth', 'pinentry')
+makedepends=('gcc' 'make' 'gettext' 'autoconf' 'automake' 'patch' 'libldap' 'libusb-compat' 'pcsclite' 'fig2dev')
+
+source=("gnupg-${pkgver}.tar.bz2", "0001-Modify-dirmngr-s-http.c-to-route-DNS-requests-throug.patch")
+md5sum=(SKIP SKIP)
+
+prepare() {
+  cd "$srcdir/gnupg-${pkgver}"
+  patch -p1 < "$srcdir/0001-Modify-dirmngr-s-http.c-to-route-DNS-requests-throug.patch"
+}
+
+build() {
+  cd "$srcdir/gnupg-${pkgver}"
+  ./autogen.sh
+  ./configure --prefix=/usr \
+              --sbindir=/usr/bin \
+	      --libdir=/usr/lib \
+	      --enable-gpg-is-gpg2
+  make  
+} 
+
+package() {
+  cd "$srcdir/gnupg-${pkgver}"
+  
+  make DESTDIR="$pkgdir" install
+}

@@ -1,0 +1,106 @@
+From 27345430e546e58283dffa54d4fa268cfb638814 Mon Sep 17 00:00:00 2001
+From: kingplunky <112518767+kingplunky@users.noreply.github.com>
+Date: Fri, 17 Jan 2025 15:21:49 +0000
+Subject: [PATCH] Modify dirmngr's http.c to route DNS requests through the
+ proxy when a proxy is set.
+
+---
+ dirmngr/http.c | 50 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 45 insertions(+), 5 deletions(-)
+
+diff --git a/dirmngr/http.c b/dirmngr/http.c
+index e4c7193..b7b1b34 100644
+--- a/dirmngr/http.c
++++ b/dirmngr/http.c
+@@ -162,7 +162,7 @@ static gpg_error_t parse_response (http_t hd);
+ static gpg_error_t connect_server (ctrl_t ctrl,
+                                    const char *server, unsigned short port,
+                                    unsigned int flags, const char *srvtag,
+-                                   unsigned int timeout, assuan_fd_t *r_sock);
++                                   unsigned int timeout, assuan_fd_t *r_sock, const int connect_byname);
+ static gpgrt_ssize_t read_server (assuan_fd_t sock, void *buffer, size_t size);
+ static gpg_error_t write_server (assuan_fd_t sock, const char *data, size_t length);
+ 
+@@ -1161,7 +1161,7 @@ http_raw_connect (ctrl_t ctrl, http_t *r_hd,
+     assuan_fd_t sock;
+ 
+     err = connect_server (ctrl, server, port,
+-                          hd->flags, srvtag, timeout, &sock);
++                          hd->flags, srvtag, timeout, &sock, 0);
+     if (err)
+       {
+         xfree (hd);
+@@ -2880,12 +2880,12 @@ send_request (ctrl_t ctrl,
+       err = connect_server (ctrl,
+                             *proxy->uri->host ? proxy->uri->host : "localhost",
+                             proxy->uri->port ? proxy->uri->port : 80,
+-                            hd->flags, NULL, timeout, &sock);
++                            hd->flags, NULL, timeout, &sock, 1);
+     }
+   else
+     {
+       err = connect_server (ctrl,
+-                            server, port, hd->flags, srvtag, timeout, &sock);
++                            server, port, hd->flags, srvtag, timeout, &sock, 0);
+     }
+   if (err)
+     goto leave;
+@@ -3619,7 +3619,7 @@ connect_with_timeout (assuan_fd_t sock,
+ static gpg_error_t
+ connect_server (ctrl_t ctrl, const char *server, unsigned short port,
+                 unsigned int flags, const char *srvtag, unsigned int timeout,
+-                assuan_fd_t *r_sock)
++                assuan_fd_t *r_sock, const int connect_byname)
+ {
+   gpg_error_t err;
+   assuan_fd_t sock = ASSUAN_INVALID_FD;
+@@ -3638,6 +3638,46 @@ connect_server (ctrl_t ctrl, const char *server, unsigned short port,
+ 
+   check_inet_support (&v4_valid, &v6_valid);
+ 
++if (connect_byname) {
++    dns_addrinfo_t aibuf;
++    
++    if (opt_debug)
++      log_debug ("http.c:connect_server: name='%s' port=%hu\n",
++                   server, port);
++    
++    err = resolve_dns_name (ctrl,
++                              server, port, 0, SOCK_STREAM,
++                              &aibuf, NULL);
++
++    sock = my_sock_new_for_addr (aibuf->addr, aibuf->socktype, aibuf->protocol);
++
++    if (sock == ASSUAN_INVALID_FD) 
++      {
++        if (errno == EAFNOSUPPORT)
++          {
++            if (aibuf->family == AF_INET)
++              v4_valid = 0;
++            if (aibuf->family == AF_INET6)
++              v6_valid = 0;
++          
++          }
++          err = gpg_err_make (default_errsource, gpg_err_code_from_syserror ());
++          log_error ("error creating socket: %s\n", gpg_strerror (err));
++          free_dns_addrinfo (aibuf);
++          return err;
++      }
++    free_dns_addrinfo (aibuf);
++    err = connect_with_timeout (sock, (struct sockaddr *)aibuf->addr,
++                                      aibuf->addrlen, timeout);
++    if (err) {
++      return err;
++    }
++
++    *r_sock = sock;
++
++    return 0;
++  }
++
+   /* Onion addresses require special treatment.  */
+   if (is_onion_address (server))
+     {
+-- 
+2.48.1
+
